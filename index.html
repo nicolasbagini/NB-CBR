@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visor CBR Pro</title>
+<style>
+  :root { color-scheme: dark; --sh: 600px; --z: 1; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0d0d0d; color: #ddd; font-family: system-ui, sans-serif; overflow: hidden; }
+  button, label.btn { background: #2a2a2a; color: #ddd; border: 1px solid #444; border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 14px; flex: none; }
+  button:hover, label.btn:hover { background: #3a3a3a; }
+  button.on { background: #2f5d62; border-color: #5aa; }
+  input[type=file] { display: none; }
+  #bar { position: fixed; top: 0; left: 0; right: 0; height: 44px; display: flex; gap: 6px; align-items: center; padding: 0 8px; background: #1a1a1a; border-bottom: 1px solid #333; z-index: 5; overflow-x: auto; white-space: nowrap; }
+  #title { margin-left: auto; font-size: 12px; opacity: .6; padding-left: 8px; max-width: 30vw; overflow: hidden; text-overflow: ellipsis; flex: none; }
+  #foot { position: fixed; bottom: 0; left: 0; right: 0; height: 40px; display: flex; gap: 8px; align-items: center; padding: 0 10px; background: #1a1a1a; border-top: 1px solid #333; z-index: 5; font-size: 13px; }
+  #rng { flex: 1; min-width: 0; }
+  #num { width: 58px; background: #2a2a2a; color: #ddd; border: 1px solid #444; border-radius: 6px; padding: 4px; }
+  body.noui #bar, body.noui #foot { display: none; }
+  #stage { position: absolute; top: 44px; bottom: 40px; left: 0; right: 0; overflow: auto; touch-action: pan-x pan-y; }
+  body.noui #stage { top: 0; bottom: 0; }
+  #view { display: flex; align-items: flex-start; margin: 0 auto; width: calc(100% * var(--z)); }
+  #view.rtl { flex-direction: row-reverse; }
+  #view img { flex: 1 1 0; min-width: 0; display: block; height: auto; user-select: none; -webkit-user-drag: none; }
+  #stage[data-fit=pagina] #view { height: calc(var(--sh) * var(--z)); align-items: stretch; }
+  #stage[data-fit=pagina] #view img { height: 100%; object-fit: contain; }
+  #stage.drop { outline: 3px dashed #6aa; outline-offset: -10px; }
+  #msg { margin: 18vh 20px 0; text-align: center; opacity: .7; line-height: 1.6; }
+  #drawer { position: fixed; top: 44px; bottom: 40px; left: 0; width: min(330px, 90vw); background: #161616; border-right: 1px solid #333; z-index: 6; overflow-y: auto; padding: 8px; display: none; grid-template-columns: repeat(2, 1fr); gap: 8px; align-content: start; }
+  #drawer.open { display: grid; }
+  .th { position: relative; background: #222; min-height: 140px; border-radius: 4px; overflow: hidden; cursor: pointer; border: 2px solid transparent; }
+  .th.cur { border-color: #5aa; }
+  .th img { width: 100%; display: block; }
+  .th span { position: absolute; bottom: 2px; right: 4px; font-size: 11px; background: #000a; padding: 0 4px; border-radius: 3px; }
+  #lib { position: fixed; inset: 44px 0 40px 0; background: #0d0d0d; z-index: 7; overflow-y: auto; padding: 14px; display: none; }
+  #lib.open { display: block; }
+  body.noui #lib { inset: 0; }
+  #grid { display: block; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; margin: 10px 0 14px; }
+  .lista .cards { grid-template-columns: 1fr; gap: 6px; }
+  .lista .card { display: flex; align-items: center; gap: 10px; padding: 9px 10px; background: #1a1a1a; border-radius: 8px; }
+  .lista .card img { display: none; }
+  .lista .card p { margin: 0; flex: 1; display: block; white-space: nowrap; }
+  .lista .card .pb { width: 64px; margin: 0; flex: none; }
+  .card.bad p { color: #e99; }
+  .sechead { display: flex; align-items: center; gap: 8px; padding: 10px 2px; font-size: 15px; cursor: pointer; border-bottom: 1px solid #2a2a2a; margin-top: 6px; user-select: none; }
+  .sechead span { opacity: .6; font-size: 12px; margin-left: auto; }
+  .frow { display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin: 6px 0; background: #1a1a1a; border-radius: 8px; cursor: pointer; font-size: 14px; }
+  .frow .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .frow small { opacity: .6; }
+  .crumbs { font-size: 13px; margin: 8px 0 4px; line-height: 1.8; }
+  .crumbs a { color: #7cc; cursor: pointer; }
+  #libhead b { flex: 1; font-size: 16px; }
+  body.nobook #foot { display: none; }
+  body.nobook #stage, body.nobook #lib, body.nobook #drawer { bottom: 0; }
+  #busy { position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%); width: max-content; max-width: 92vw; background: #000e; border: 1px solid #555; border-radius: 12px; padding: 10px 14px; z-index: 10; display: none; gap: 12px; align-items: center; font-size: 13px; }
+  #busy.show { display: flex; }
+  .frow .del { background: #7a2323; border-color: #b33; color: #fff; padding: 2px 11px; font-weight: bold; }
+  .card[data-t]::after { content: attr(data-t); position: absolute; top: 6px; left: 6px; background: #000a; font-size: 11px; padding: 1px 6px; border-radius: 4px; }
+  #addmenu { position: fixed; top: 48px; left: 8px; z-index: 9; display: none; flex-direction: column; gap: 6px; background: #1e1e1e; border: 1px solid #444; border-radius: 8px; padding: 8px; }
+  #addmenu.open { display: flex; }
+  .card { position: relative; cursor: pointer; }
+  .card img { width: 100%; aspect-ratio: 2/3; object-fit: cover; border-radius: 6px; background: #222; display: block; }
+  .card p { margin: 4px 0 0; font-size: 12px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .card .pb { height: 3px; background: #333; margin-top: 3px; } .card .pb i { display: block; height: 100%; background: #5aa; }
+  .card .x { position: absolute; top: 4px; right: 4px; padding: 0 7px; font-size: 14px; background: #000b; }
+  #libhead { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+  #root { flex: 1; min-width: 0; font-size: 12px; opacity: .75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #crumbs { font-size: 13px; margin-bottom: 12px; line-height: 1.8; }
+  #crumbs a { color: #7cc; cursor: pointer; }
+  .folder .fi { aspect-ratio: 2/3; display: flex; align-items: center; justify-content: center; font-size: 46px; background: #1d1d1d; border-radius: 6px; }
+  .sec { grid-column: 1 / -1; font-size: 13px; opacity: .7; margin-top: 8px; }
+  #set { position: fixed; top: 48px; right: 8px; background: #1e1e1e; border: 1px solid #444; border-radius: 8px; padding: 12px; z-index: 8; display: none; width: 250px; font-size: 13px; }
+  #set.open { display: block; } #set label { display: block; margin: 8px 0 2px; } #set input[type=range] { width: 100%; }
+  #toast { max-width: 88vw; text-align: center; position: fixed; bottom: 56px; left: 50%; transform: translateX(-50%); background: #000c; padding: 8px 14px; border-radius: 20px; font-size: 13px; z-index: 9; opacity: 0; transition: opacity .25s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body class="nobook">
+<div id="bar">
+  <button id="bLib" title="Biblioteca (L)">📚</button>
+  <button id="bAdd" title="Abrir archivo o agregar carpeta">＋</button>
+  <button id="bPrev" title="Anterior">◀</button>
+  <button id="bNext" title="Siguiente">▶</button>
+  <button id="bThumbs" title="Miniaturas (T)">▦</button>
+  <button id="bDouble" title="Doble página (D)">📖</button>
+  <button id="bRtl" title="Manga: derecha a izquierda (M)">⇄ Manga</button>
+  <button id="bFit" title="Ajuste (A)">Ancho</button>
+  <button id="bZo" title="Alejar (−)">−</button>
+  <button id="bZi" title="Acercar (+)">+</button>
+  <button id="bNight" title="Modo lectura / noche (N)">🌙</button>
+  <button id="bSet" title="Brillo y contraste">🎨</button>
+  <button id="bFull" title="Pantalla completa (F)">⛶</button>
+  <span id="title"></span>
+</div>
+
+<div id="stage" data-fit="ancho"><div id="view"><div id="msg">Abre o arrastra aquí un archivo .cbr / .cbz</div></div></div>
+<div id="drawer"></div>
+<div id="lib">
+  <div id="libhead"><b>📚 Biblioteca</b><button id="bRescan" title="Actualizar carpeta">↻</button><button id="bView" title="Vista">☰</button></div>
+  <div id="grid"></div>
+</div>
+<div id="addmenu"><button id="aFolder">📁 Agregar carpeta</button><button id="aFiles">📄 Abrir archivo(s)</button></div>
+
+
+
+<div id="set">
+  <label>Brillo <span id="bv"></span><input id="sb" type="range" min="40" max="160"></label>
+  <label>Contraste <span id="cv"></span><input id="sc" type="range" min="60" max="180"></label>
+  
+  <label><input id="sv" type="checkbox"> Pasar página con las teclas de volumen</label>
+  <button id="bFree" style="margin-top:10px;width:100%">Liberar memoria</button>
+  <p style="opacity:.6;margin:10px 0 0">Atajos: ←/→ página · +/− zoom · T miniaturas · D doble · M manga · A ajuste · F pantalla completa · L biblioteca · H ocultar barras · N modo lectura · doble clic pantalla completa</p>
+</div>
+
+<div id="foot">
+  <button id="bVolP" title="Tomo anterior">⏮</button>
+  <input id="rng" type="range" min="1" max="1" value="1">
+  <input id="num" type="number" min="1" value="1"><span id="tot">/ 0</span><button id="bVol" title="Siguiente tomo">⏭</button>
+</div>
+<div id="busy"><span id="busyT"></span><button id="busyX">Cancelar</button></div>
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
+const VCBR = NATIVE ? (Capacitor.Plugins.VisorCBR || Capacitor.registerPlugin('VisorCBR')) : null;
+const stage = $('stage'), view = $('view'), drawer = $('drawer'), lib = $('lib');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const LS = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+const cfg = Object.assign({ double: false, rtl: false, fit: 'ancho', bright: 100, contrast: 100, night: false, view: 'grande', secC: true, secM: true, volkeys: true }, LS.get('vcbr:cfg', {}));
+const S = { pages: [], idx: 0, step: 1, id: null, name: '', z: 1, token: 0 };
+const cache = new Map();
+let toastT;
+const toast = (t, ms = 1800) => { const e = $('toast'); e.textContent = t; e.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => e.classList.remove('show'), ms); };
+const natural = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+
+/* ---------- Biblioteca (IndexedDB) ---------- */
+const DB = new Promise((ok, no) => { try { const r = indexedDB.open('visorcbr', 2); r.onupgradeneeded = () => { const d = r.result; if (!d.objectStoreNames.contains('books')) d.createObjectStore('books', { keyPath: 'id' }); if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'k' }); if (!d.objectStoreNames.contains('covers')) d.createObjectStore('covers', { keyPath: 'id' }); }; r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); } catch (e) { no(e); } });
+const db = (mode, fn, store = 'books') => DB.then(d => new Promise((ok, no) => { const t = d.transaction(store, mode), r = fn(t.objectStore(store)); t.oncomplete = () => ok(r && r.result); t.onerror = () => no(t.error); }));
+const allBooks = () => db('readonly', s => s.getAll()).then(l => (l || []).sort((a, b) => natural(a.name, b.name))).catch(() => []);
+
+/* ---------- Lectura de archivos ---------- */
+const isImg = n => /\.(jpe?g|png|gif|webp|bmp|avif)$/i.test(n) && !/(^|\/)(__MACOSX|\.)/.test(n);
+const loadScript = src => new Promise((ok, err) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = err; document.head.appendChild(s); });
+let rarReady;
+async function readRar(file) {
+  const base = 'https://cdn.jsdelivr.net/npm/libarchive.js@2.0.2/dist/';
+  if (!rarReady) rarReady = (async () => {
+    const { Archive } = await import(base + 'libarchive.js');
+    const code = await (await fetch(base + 'worker-bundle.js')).text();
+    Archive.init({ workerUrl: URL.createObjectURL(new Blob([code], { type: 'text/javascript' })) });
+    return Archive;
+  })();
+  const Archive = await rarReady;
+  const archive = await Archive.open(file);
+  const files = await archive.getFilesArray();
+  const list = files.filter(f => isImg(f.path + f.file.name)).map(f => ({ name: f.path + f.file.name, get: async () => f.file.extract ? await f.file.extract() : f.file }));
+  list.close = () => { try { archive.close(); } catch (e) {} };
+  return list;
+}
+async function readZip(file) {
+  if (!window.JSZip) await loadScript('./lib/jszip.min.js').catch(() => loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'));
+  const zip = await JSZip.loadAsync(await file.arrayBuffer()), list = [];
+  zip.forEach((p, e) => { if (!e.dir && isImg(p)) list.push({ name: p, get: () => e.async('blob') }); });
+  return list;
+}
+async function sniff(file) {
+  const h = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+  if (h[0] === 0x50 && h[1] === 0x4B) return 'ZIP';
+  if (h[0] === 0x52 && h[1] === 0x61 && h[2] === 0x72 && h[3] === 0x21) return 'RAR';
+  return '?';
+}
+const withTimeout = (p, ms, msg) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error(msg)), ms))]);
+
+/* Lector RAR principal: unrar oficial (WebAssembly) en el hilo principal, sin workers */
+const UNRAR = 'https://cdn.jsdelivr.net/npm/node-unrar-js@2.0.2';
+let unrarLib = null; const UN = { cur: null, q: Promise.resolve() };
+function loadUnrar() {
+  if (!unrarLib) unrarLib = (async () => {
+    const mod = await import('./lib/unrar.bundle.js').catch(() => import(UNRAR + '/+esm'));
+    const create = mod.createExtractorFromData || (mod.default && mod.default.createExtractorFromData);
+    if (!create) throw new Error('módulo unrar no válido');
+    let res = await fetch('./lib/unrar.wasm').catch(() => null);
+    if (!res || !res.ok) res = await fetch(UNRAR + '/esm/js/unrar.wasm');
+    if (!res.ok) throw new Error('no se pudo bajar unrar.wasm (' + res.status + ')');
+    return { create, wasmBinary: await res.arrayBuffer() };
+  })().catch(e => { unrarLib = null; throw e; });
+  return unrarLib;
+}
+const unrarLock = fn => { const run = UN.q.then(fn); UN.q = run.catch(() => {}); return run; };
+async function readRarUnrar(file) {
+  const { create, wasmBinary } = await loadUnrar();
+  let data = await file.arrayBuffer(), ex = null;
+  const tag = {};
+  const ensure = async () => { if (UN.cur !== tag || !ex) { ex = await create({ data, wasmBinary }); UN.cur = tag; } return ex; };
+  const headers = await unrarLock(async () => { const e = await ensure(); return [...e.getFileList().fileHeaders]; });
+  const list = headers.filter(h => !h.flags.directory && isImg(h.name)).map(h => ({
+    name: h.name,
+    get: () => unrarLock(async () => {
+      const e = await ensure();
+      const arr = [...e.extract({ files: [h.name] }).files];
+      const ext = arr[0] && arr[0].extraction;
+      if (!ext) throw new Error('página vacía: ' + h.name);
+      return new Blob([ext]);
+    })
+  }));
+  list.close = () => { data = null; ex = null; if (UN.cur === tag) UN.cur = null; };
+  return list;
+}
+
+async function parse(file) {
+  const kind = await sniff(file);
+  let list;
+  if (kind === 'ZIP') list = await readZip(file);
+  else {
+    const errs = [];
+    try { list = await withTimeout(readRarUnrar(file), 60000, 'sin respuesta'); }
+    catch (e1) {
+      errs.push('unrar: ' + (e1.message || e1));
+      try { list = await withTimeout(readRar(file), 25000, 'sin respuesta'); }
+      catch (e2) { errs.push('libarchive: ' + (e2.message || e2)); throw new Error(errs.join(' | ')); }
+    }
+  }
+  if (!list.length) { if (list.close) list.close(); throw new Error('No se encontraron imágenes'); }
+  list.kind = kind;
+  return list.sort((a, b) => natural(a.name, b.name));
+}
+async function thumbURL(blob, w) {
+  const u = URL.createObjectURL(blob), im = new Image(); im.src = u; await im.decode();
+  const c = document.createElement('canvas'); c.width = w; c.height = Math.round(im.naturalHeight * w / im.naturalWidth);
+  c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(u);
+  return c.toDataURL('image/jpeg', .72);
+}
+
+/* ---------- Páginas: caché y precarga ---------- */
+function meta(i) {
+  if (i < 0 || i >= S.pages.length) return Promise.resolve(null);
+  if (!cache.has(i)) cache.set(i, (async () => {
+    const url = URL.createObjectURL(await S.pages[i].get()), im = new Image(); im.src = url;
+    await im.decode().catch(() => {});
+    return { url, w: im.naturalWidth, h: im.naturalHeight };
+  })());
+  return cache.get(i);
+}
+const wide = m => m && m.w > m.h * 1.1;
+function evict() { for (const [i, p] of cache) if (i < S.idx - 2 || i > S.idx + 4) { cache.delete(i); p.then(m => URL.revokeObjectURL(m.url)); } }
+function clearCache() { for (const p of cache.values()) p.then(m => URL.revokeObjectURL(m.url)); cache.clear(); }
+async function pair(i) {
+  if (!cfg.double || i === 0 || i + 1 >= S.pages.length) return [i];
+  const [a, b] = await Promise.all([meta(i), meta(i + 1)]);
+  return wide(a) || wide(b) ? [i] : [i, i + 1];
+}
+
+/* ---------- Mostrar ---------- */
+async function show() {
+  document.body.classList.toggle('nobook', !S.pages.length);
+  if (!S.pages.length) return;
+  const t = ++S.token;
+  S.idx = Math.max(0, Math.min(S.pages.length - 1, S.idx));
+  const ids = await pair(S.idx), ms = await Promise.all(ids.map(meta));
+  if (t !== S.token) return;
+  S.step = ids.length;
+  view.innerHTML = '';
+  ms.forEach(m => { const im = new Image(); im.src = m.url; im.draggable = false; view.appendChild(im); });
+  view.classList.toggle('rtl', cfg.rtl);
+  stage.scrollTop = 0; stage.scrollLeft = 0;
+  syncUI(); evict();
+  for (let k = 1; k <= 2; k++) meta(S.idx + S.step - 1 + k);
+  const p = LS.get('vcbr:prog', {}); p[S.id] = { page: S.idx, total: S.pages.length }; LS.set('vcbr:prog', p);
+}
+async function prevIdx() {
+  const i = S.idx - 1;
+  if (i <= 0) return 0;
+  if (cfg.double && i - 1 >= 1) { const [a, b] = await Promise.all([meta(i - 1), meta(i)]); if (!wide(a) && !wide(b)) return i - 1; }
+  return i;
+}
+async function nav(d) {
+  if (!S.pages.length) return;
+  if (d > 0) {
+    if (S.idx + S.step >= S.pages.length) return stepVol(1, true);
+    S.idx += S.step;
+  } else S.idx = await prevIdx();
+  show();
+}
+const dirKey = d => nav(cfg.rtl ? -d : d);
+
+/* ---------- Abrir libros ---------- */
+let openTok = 0;
+function busy(t) { const b = $('busy'); if (t) { $('busyT').textContent = t; b.classList.add('show'); } else b.classList.remove('show'); }
+$('busyX').onclick = () => { openTok++; busy(''); toast('Cancelado'); };
+async function openBook(file, id) {
+  libTok++;
+  const my = ++openTok;
+  try {
+    busy('Abriendo «' + file.name + '» (' + (await sniff(file)) + ', ' + Math.round(file.size / 1048576) + ' MB)…');
+    const pages = await parse(file);
+    if (my !== openTok) { if (pages.close) pages.close(); return; }
+    clearCache(); drawer.innerHTML = ''; drawer.dataset.built = '';
+    const old = S.pages; S.pages = pages; if (old && old.close) old.close();
+    S.name = file.name; S.id = id || file.name + '|' + file.size;
+    S.idx = Math.min((LS.get('vcbr:prog', {})[S.id] || {}).page || 0, pages.length - 1);
+    $('title').textContent = file.name.replace(/\.(cbr|cbz|rar|zip)$/i, '');
+    closePanel('lib');
+    await show();
+    busy('');
+    const sid = S.id, pg = S.pages;
+    (async () => { try { if (await db('readonly', s => s.get(sid), 'covers')) return; const url = await thumbURL(await pg[0].get(), 220); await db('readwrite', s => s.put({ id: sid, url }), 'covers'); } catch (e) {} })();
+    if (!id) saveBook(file);
+  } catch (e) {
+    if (my !== openTok) return;
+    busy('');
+    console.error(e);
+    toast('No se pudo abrir «' + file.name + '»: ' + (e.message || e), 9000);
+  }
+}
+async function saveBook(file) {
+  try {
+    if (await db('readonly', s => s.get(S.id))) return;
+    const m = await meta(0);
+    const cover = await thumbURL(await (await fetch(m.url)).blob(), 220);
+    await db('readwrite', s => s.put({ id: S.id, name: file.name, size: file.size, blob: file, cover, added: Date.now() }));
+  } catch (e) { console.warn('No se pudo guardar en la biblioteca', e); }
+}
+/* ---------- Paneles y botón atrás del teléfono ---------- */
+let libTok = 0, coverQ = Promise.resolve(), coverIO = null, ignorePop = 0;
+function openPanel(id) {
+  const el = $(id); if (el.classList.contains('open')) return;
+  el.classList.add('open');
+  if (id === 'lib' && !S.pages.length) return;
+  if (!NATIVE) try { history.pushState({ p: id }, ''); el.dataset.h = '1'; } catch (e) {}
+}
+function closePanel(id, viaPop) {
+  const el = $(id); if (!el.classList.contains('open')) return;
+  el.classList.remove('open'); updateVol();
+  if (el.dataset.h === '1') { el.dataset.h = ''; if (!viaPop) { ignorePop++; try { history.back(); } catch (e) { ignorePop--; } } }
+}
+addEventListener('popstate', () => {
+  if (ignorePop > 0) { ignorePop--; return; }
+  for (const id of ['addmenu', 'set', 'drawer', 'lib']) {
+    if ($(id).dataset.h === '1' && $(id).classList.contains('open')) { closePanel(id, true); syncUI(); return; }
+  }
+});
+
+/* ---------- Tomos anterior/siguiente ---------- */
+async function openEntry(entry, list) {
+  try {
+    const f = await entry.open();
+    S.seq = list || null; S.seqI = list ? list.indexOf(entry) : -1;
+    await openBook(f, f.name + '|' + f.size);
+  } catch (e) { toast('No se pudo abrir «' + entry.name + '»: ' + (e.name || '') + ' ' + (e.message || e), 8000); }
+}
+async function seqList() {
+  if (S.seq) return { list: S.seq, i: S.seqI };
+  const bs = await allBooks();
+  return { list: bs.map(b => ({ name: b.name, open: async () => b.blob })), i: bs.findIndex(b => b.id === S.id) };
+}
+async function stepVol(d, fromEnd) {
+  const { list, i } = await seqList(), n = i >= 0 ? list[i + d] : null;
+  if (!n) { toast(d > 0 ? (fromEnd ? 'Fin del tomo' : 'No hay más tomos') : 'No hay tomo anterior'); return; }
+  toast((d > 0 ? 'Siguiente: ' : 'Anterior: ') + n.name);
+  openEntry(n, S.seq ? list : null);
+}
+
+/* ---------- Pantalla completa ---------- */
+function toggleFull() {
+  if (NATIVE) { FULL = !FULL; VCBR.immersive({ on: FULL }); document.body.classList.toggle('noui', FULL); setTimeout(setSh, 80); return; }
+  const el = document.documentElement;
+  if (!el.requestFullscreen) return toggleUI();
+  (document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen()).catch(() => toggleUI());
+}
+document.addEventListener('fullscreenchange', () => { document.body.classList.toggle('noui', !!document.fullscreenElement); setTimeout(setSh, 60); });
+
+/* ---------- Carpetas (la raíz y las que agregues) ---------- */
+const hasFS = !!window.showDirectoryPicker;
+const isComic = n => /\.(cbr|cbz|rar|zip)$/i.test(n);
+let ROOTS = [], NAV = { r: -1, path: [] };
+const entryOf = c => c.entry || (c.entry = { name: c.name, open: async () => c.file || (c.uri ? nativeFile(c.uri, c.name) : c.h.getFile()) });
+const countAll = n => n.comics.length + n.dirs.reduce((t, d) => t + countAll(d), 0);
+function sortTree(n) { n.dirs.sort((a, b) => natural(a.name, b.name)); n.comics.sort((a, b) => natural(a.name, b.name)); n.dirs.forEach(sortTree); }
+async function scanDir(h, path) {
+  const n = { name: h.name, path, dirs: [], comics: [] };
+  for await (const [name, e] of h.entries()) {
+    if (name.startsWith('.')) continue;
+    if (e.kind === 'directory') n.dirs.push(await scanDir(e, path + name + '/'));
+    else if (isComic(name)) n.comics.push({ name, h: e });
+  }
+  return n;
+}
+function treeFromFiles(files) {
+  const root = { name: '', path: '', dirs: [], comics: [] };
+  for (const f of files) {
+    if (!isComic(f.name)) continue;
+    const parts = (f.webkitRelativePath || f.name).split('/');
+    if (parts.length > 1) root.name = parts[0];
+    let n = root;
+    for (const p of parts.slice(1, -1)) {
+      let d = n.dirs.find(x => x.name === p);
+      if (!d) { d = { name: p, path: n.path + p + '/', dirs: [], comics: [] }; n.dirs.push(d); }
+      n = d;
+    }
+    n.comics.push({ name: f.name, file: f });
+  }
+  sortTree(root); return root;
+}
+const saveRoots = () => db('readwrite', s => s.put({ k: 'roots', list: ROOTS.map(r => ({ name: r.name, handle: r.handle, uri: r.uri })) }), 'meta').catch(e => console.warn(e));
+function upsertRoot(r) {
+  let i = ROOTS.findIndex(x => x.name === r.name);
+  if (i < 0) { ROOTS.push(r); i = ROOTS.length - 1; } else ROOTS[i] = r;
+  NAV = { r: i, path: [r.tree] }; saveRoots();
+  toast(countAll(r.tree) + ' cómics encontrados'); showLib();
+}
+function pickDirFallback() {
+  if (window._dirInput) window._dirInput.remove();
+  const i = document.createElement('input'); i.type = 'file'; i.webkitdirectory = true; i.multiple = true; i.style.display = 'none';
+  i.onchange = () => { const files = [...i.files]; if (!files.length) return; const tree = treeFromFiles(files); upsertRoot({ name: tree.name || 'Carpeta', tree }); };
+  document.body.appendChild(i); window._dirInput = i; i.click();
+}
+async function addFolder() {
+  if (NATIVE) return addFolderNative();
+  if (!hasFS) return pickDirFallback();
+  try { const h = await showDirectoryPicker({ mode: 'read' }); toast('Leyendo carpeta…', 60000); const tree = await scanDir(h, ''); sortTree(tree); upsertRoot({ name: h.name, handle: h, tree }); }
+  catch (e) { if (e.name !== 'AbortError') toast('No se pudo abrir la carpeta', 4000); }
+}
+async function refreshRoot(i) {
+  const r = ROOTS[i]; if (!r) return;
+  if (NATIVE) return refreshNative(i);
+  if (!r.handle) return pickDirFallback();
+  try {
+    if ((await r.handle.requestPermission({ mode: 'read' })) !== 'granted') return toast('Permiso denegado');
+    toast('Leyendo carpeta…', 60000); r.tree = await scanDir(r.handle, ''); sortTree(r.tree);
+    if (NAV.r === i) NAV.path = [r.tree];
+    toast(countAll(r.tree) + ' cómics'); showLib();
+  } catch (e) { toast('No se pudo leer la carpeta: ' + (e.message || e), 5000); }
+}
+async function rescan() {
+  if (NAV.r >= 0) return refreshRoot(NAV.r);
+  const hs = ROOTS.map((r, i) => (r.handle || r.uri) ? i : -1).filter(i => i >= 0);
+  if (!hs.length) { toast(ROOTS.length ? 'En el teléfono: toca la carpeta para elegirla otra vez' : 'Toca ＋ para agregar una carpeta', 3500); return; }
+  for (const i of hs) await refreshRoot(i);
+}
+async function initRoots() {
+  const get = k => db('readonly', s => s.get(k), 'meta').catch(() => null);
+  const rec = await get('roots');
+  let list = rec && rec.list;
+  if (!list) { const o = await get('root'); list = o ? [{ name: o.name, handle: o.handle }] : []; }
+  ROOTS = list.map(r => ({ name: r.name, handle: r.handle, uri: r.uri }));
+  for (const r of ROOTS) {
+    if (NATIVE && r.uri) { try { r.tree = treeFromNative(await VCBR.scanFolder({ uri: r.uri }), r.name); } catch (e) {} continue; }
+    if (!r.handle) continue;
+    try { if ((await r.handle.queryPermission({ mode: 'read' })) === 'granted') { r.tree = await scanDir(r.handle, ''); sortTree(r.tree); } } catch (e) {}
+  }
+  if (ROOTS.length === 1 && ROOTS[0].tree) NAV = { r: 0, path: [ROOTS[0].tree] };
+  if (ROOTS.length || (await allBooks()).length) showLib();
+}
+
+/* ---------- Archivos sueltos ---------- */
+async function makeCover(f) {
+  if ((await sniff(f)) !== 'ZIP') return null; // los RAR reales gastan mucha memoria: su portada se guarda al abrirlos
+  const pages = await parse(f);
+  try { return await thumbURL(await pages[0].get(), 220); } finally { if (pages.close) pages.close(); }
+}
+async function addFiles(files, quiet) {
+  let n = 0;
+  for (const f of files) {
+    const id = f.name + '|' + f.size;
+    try {
+      if (await db('readonly', s => s.get(id))) continue;
+      const cover = await makeCover(f);
+      await db('readwrite', s => s.put({ id, name: f.name, size: f.size, blob: f, cover: cover || '', added: Date.now() }));
+      toast('Agregado ' + (++n) + ' de ' + files.length);
+    } catch (e) { toast('No se pudo agregar «' + f.name + '»: ' + (e.message || e), 5000); }
+  }
+  if (!quiet) showLib();
+}
+function pickFiles() {
+  if (window._fileInput) window._fileInput.remove();
+  const i = document.createElement('input'); i.type = 'file'; i.multiple = true; i.accept = '.cbr,.cbz,.rar,.zip'; i.style.display = 'none';
+  i.onchange = () => { const fs = [...i.files]; if (!fs.length) return; S.seq = null; openBook(fs[0]); if (fs.length > 1) addFiles(fs.slice(1), true); };
+  document.body.appendChild(i); window._fileInput = i; i.click();
+}
+
+/* ---------- Biblioteca ---------- */
+function secHead(title, sub, key) {
+  const h = document.createElement('div'); h.className = 'sechead';
+  h.innerHTML = '<b>' + (cfg[key] ? '▾' : '▸') + '</b> ' + title + ' <span></span>';
+  h.querySelector('span').textContent = sub;
+  h.onclick = () => { cfg[key] = !cfg[key]; LS.set('vcbr:cfg', cfg); showLib(); };
+  return h;
+}
+function frow(icon, text, sub, fn, onDel) {
+  const d = document.createElement('div'); d.className = 'frow';
+  d.innerHTML = '<span>' + icon + '</span><span class="t"></span><small></small>' + (onDel ? '<button class="del" title="Quitar del visor">−</button>' : '');
+  d.querySelector('.t').textContent = text; d.querySelector('small').textContent = sub || ''; d.onclick = fn;
+  if (onDel) d.querySelector('.del').onclick = e => { e.stopPropagation(); onDel(); };
+  return d;
+}
+function note(t) { const d = document.createElement('div'); d.className = 'frow'; d.style.cssText = 'opacity:.65;cursor:default'; d.textContent = t; return d; }
+function crumbs() {
+  const cr = document.createElement('div'); cr.className = 'crumbs';
+  const add = (txt, fn, last) => { const a = document.createElement(last ? 'span' : 'a'); a.textContent = txt; if (!last) { a.onclick = fn; } cr.appendChild(a); if (!last) cr.append(' › '); };
+  add('Carpetas', () => { NAV = { r: -1, path: [] }; showLib(); }, false);
+  NAV.path.forEach((n, i) => add(i ? n.name : ROOTS[NAV.r].name, () => { NAV.path = NAV.path.slice(0, i + 1); showLib(); }, i === NAV.path.length - 1));
+  return cr;
+}
+function addCard(g, tok, cm, seq, prog) {
+  const c = document.createElement('div'); c.className = 'card';
+  c.innerHTML = '<img alt=""><p></p><div class="pb"><i style="width:0%"></i></div>';
+  c.querySelector('p').textContent = cm.name.replace(/\.(cbr|cbz|rar|zip)$/i, '');
+  c.onclick = () => openEntry(entryOf(cm), seq);
+  g.appendChild(c);
+  const info = cm.uri ? Promise.resolve({ name: cm.name, size: cm.size }) : entryOf(cm).open();
+  info.then(f => {
+    if (tok !== libTok) return;
+    const id = f.name + '|' + f.size, p = prog[id];
+    if (p) c.querySelector('.pb i').style.width = Math.round((p.page + 1) / p.total * 100) + '%';
+    if (cfg.view === 'lista') return;
+    c._job = async () => {
+      if (tok !== libTok) return;
+      try {
+        let rec = await db('readonly', s => s.get(id), 'covers').catch(() => null);
+        if (!rec) {
+          if (cm.uri && (await VCBR.sniff({ uri: cm.uri })).kind !== 'ZIP') { c.dataset.t = 'RAR'; return; }
+          const file = cm.uri ? await entryOf(cm).open() : f;
+          const url = await makeCover(file);
+          if (!url) { c.dataset.t = 'RAR'; return; }
+          rec = { id, url }; db('readwrite', s => s.put(rec), 'covers').catch(() => {});
+        }
+        c.querySelector('img').src = rec.url;
+      } catch (e) { console.warn(e); c.classList.add('bad'); c.title = (e.name || '') + ' ' + (e.message || e); }
+    };
+    coverIO.observe(c);
+  }).catch(e => { c.classList.add('bad'); c.title = (e.name || '') + ' ' + (e.message || e); });
+}
+async function showLib() {
+  const tok = ++libTok, prog = LS.get('vcbr:prog', {}), g = $('grid'), lista = cfg.view === 'lista';
+  const books = await allBooks();
+  if (tok !== libTok) return;
+  g.className = lista ? 'lista' : '';
+  $('bView').textContent = lista ? '▦' : '☰'; $('bView').title = lista ? 'Ver con portadas' : 'Ver como lista';
+  if (coverIO) coverIO.disconnect();
+  coverIO = new IntersectionObserver(es => es.forEach(e => {
+    if (!e.isIntersecting) return; coverIO.unobserve(e.target);
+    const job = e.target._job; if (job) coverQ = coverQ.then(job);
+  }), { root: lib, rootMargin: '300px' });
+  g.innerHTML = '';
+
+  g.appendChild(secHead('📁 Carpetas', ROOTS.length ? String(ROOTS.length) : '', 'secC'));
+  if (cfg.secC) {
+    if (!ROOTS.length) g.appendChild(note('Todavía no hay carpetas. Toca ＋ para agregar una.'));
+    else if (NAV.r < 0 || !ROOTS[NAV.r] || !ROOTS[NAV.r].tree) {
+      NAV = { r: -1, path: [] };
+      ROOTS.forEach((r, i) => g.appendChild(frow('📁', r.name, r.tree ? countAll(r.tree) + ' cómics' : 'toca para elegirla otra vez',
+        () => { if (r.tree) { NAV = { r: i, path: [r.tree] }; showLib(); } else refreshRoot(i); },
+        () => { if (confirm('¿Quitar «' + r.name + '» del visor? No se borra nada del teléfono.')) { ROOTS.splice(i, 1); NAV = { r: -1, path: [] }; saveRoots(); showLib(); } })));
+    } else {
+      const cwd = NAV.path[NAV.path.length - 1];
+      g.appendChild(crumbs());
+      cwd.dirs.forEach(d => g.appendChild(frow('📁', d.name, String(countAll(d)), () => { NAV.path.push(d); showLib(); })));
+      const box = document.createElement('div'); box.className = 'cards'; g.appendChild(box);
+      const seq = cwd.comics.map(entryOf);
+      cwd.comics.forEach(cm => addCard(box, tok, cm, seq, prog));
+      if (!cwd.dirs.length && !cwd.comics.length) g.appendChild(note('No hay cómics en esta carpeta.'));
+    }
+  }
+
+  g.appendChild(secHead('📄 Mis archivos', String(books.length), 'secM'));
+  if (cfg.secM) {
+    if (!books.length) g.appendChild(note('Aquí quedan los cómics que abras. También puedes agregarlos con ＋.'));
+    else {
+      const box = document.createElement('div'); box.className = 'cards'; g.appendChild(box);
+      const seq = books.map(b => ({ name: b.name, open: async () => b.blob }));
+      books.forEach((b, i) => {
+        const p = prog[b.id], pct = p ? Math.round((p.page + 1) / p.total * 100) : 0;
+        const c = document.createElement('div'); c.className = 'card';
+        c.innerHTML = '<img src="' + (b.cover || '') + '"><p></p><div class="pb"><i style="width:' + pct + '%"></i></div><button class="x" title="Quitar">×</button>';
+        c.querySelector('p').textContent = b.name.replace(/\.(cbr|cbz|rar|zip)$/i, '');
+        c.onclick = () => openEntry(seq[i], seq);
+        c.querySelector('.x').onclick = async e => { e.stopPropagation(); if (confirm('¿Quitar de Mis archivos?')) { await db('readwrite', s => s.delete(b.id)); showLib(); } };
+        box.appendChild(c);
+      });
+    }
+  }
+  openPanel('lib'); updateVol();
+}
+$('bAdd').onclick = () => $('addmenu').classList.contains('open') ? closePanel('addmenu') : openPanel('addmenu');
+$('aFolder').onclick = () => { closePanel('addmenu'); addFolder(); };
+$('aFiles').onclick = () => { closePanel('addmenu'); pickFiles(); };
+$('bRescan').onclick = rescan;
+$('bView').onclick = () => { cfg.view = cfg.view === 'lista' ? 'grande' : 'lista'; LS.set('vcbr:cfg', cfg); showLib(); };
+
+document.addEventListener('click', e => { if (!e.target.closest('#addmenu, #bAdd')) closePanel('addmenu'); });
+/* tocar fuera cierra miniaturas y ajustes (sin pasar de página) */
+document.addEventListener('click', e => {
+  const t = e.target; let closed = false;
+  if ($('set').classList.contains('open') && !t.closest('#set, #bSet')) { closePanel('set'); closed = true; }
+  if (drawer.classList.contains('open') && !t.closest('#drawer, #bThumbs')) { closePanel('drawer'); closed = true; syncUI(); }
+  if (closed && t.closest('#stage')) { e.stopPropagation(); e.preventDefault(); }
+}, true);
+$('bFree').onclick = () => { clearCache(); coverQ = Promise.resolve(); drawer.innerHTML = ''; drawer.dataset.built = ''; closePanel('drawer'); if (S.pages.length) show(); toast('Memoria liberada'); };
+
+/* ---------- Miniaturas ---------- */
+let thumbQ = Promise.resolve();
+function buildThumbs() {
+  drawer.dataset.built = '1'; drawer.innerHTML = '';
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (!e.isIntersecting) return; io.unobserve(e.target);
+    const i = +e.target.dataset.i;
+    thumbQ = thumbQ.then(async () => { try { const im = new Image(); im.src = await thumbURL(await S.pages[i].get(), 140); e.target.prepend(im); } catch {} });
+  }), { root: drawer, rootMargin: '200px' });
+  S.pages.forEach((_, i) => {
+    const d = document.createElement('div'); d.className = 'th'; d.dataset.i = i; d.innerHTML = `<span>${i + 1}</span>`;
+    d.onclick = () => { S.idx = i; show(); }; drawer.appendChild(d); io.observe(d);
+  });
+}
+function toggleThumbs() { if (!S.pages.length) return; (drawer.classList.contains('open') ? closePanel('drawer') : openPanel('drawer')); if (drawer.classList.contains('open') && !drawer.dataset.built) buildThumbs(); syncUI(); }
+
+/* ---------- UI y ajustes ---------- */
+function setSh() { document.documentElement.style.setProperty('--sh', stage.clientHeight + 'px'); }
+function setZoom(z) { S.z = Math.max(1, Math.min(5, z)); document.documentElement.style.setProperty('--z', S.z); }
+function applyImg() {
+  view.style.filter = `brightness(${cfg.bright}%) contrast(${cfg.contrast}%)` + (cfg.night ? ' sepia(.35) brightness(.85)' : '');
+  $('sb').value = cfg.bright; $('sc').value = cfg.contrast; $('bNight').classList.toggle('on', cfg.night); $('sv').checked = cfg.volkeys;
+  $('bv').textContent = cfg.bright + '%'; $('cv').textContent = cfg.contrast + '%';
+}
+function syncUI() {
+  const n = S.pages.length;
+  $('rng').max = n || 1; $('rng').value = S.idx + 1; $('num').max = n; $('num').value = S.idx + 1; $('tot').textContent = '/ ' + n;
+  $('rng').style.direction = cfg.rtl ? 'rtl' : 'ltr';
+  $('bDouble').classList.toggle('on', cfg.double); $('bRtl').classList.toggle('on', cfg.rtl);
+  $('bThumbs').classList.toggle('on', drawer.classList.contains('open'));
+  $('bFit').textContent = cfg.fit === 'ancho' ? 'Ancho' : 'Página'; stage.dataset.fit = cfg.fit;
+  drawer.querySelectorAll('.th').forEach(d => d.classList.toggle('cur', +d.dataset.i >= S.idx && +d.dataset.i < S.idx + S.step));
+  const cur = drawer.querySelector('.th.cur'); if (cur && drawer.classList.contains('open')) cur.scrollIntoView({ block: 'nearest' });
+  LS.set('vcbr:cfg', cfg); setSh(); updateVol();
+}
+const toggle = k => { cfg[k] = !cfg[k]; show(); };
+
+
+const openFile = f => { if (f) { S.seq = null; openBook(f); } };
+$('bLib').onclick = () => lib.classList.contains('open') && S.pages.length ? closePanel('lib') : showLib();
+$('bPrev').onclick = () => dirKey(-1); $('bNext').onclick = () => dirKey(1);
+$('bThumbs').onclick = toggleThumbs;
+$('bDouble').onclick = () => toggle('double'); $('bRtl').onclick = () => toggle('rtl');
+$('bFit').onclick = () => { cfg.fit = cfg.fit === 'ancho' ? 'pagina' : 'ancho'; setZoom(1); syncUI(); };
+$('bZo').onclick = () => setZoom(S.z - .5); $('bZi').onclick = () => setZoom(S.z + .5);
+$('bSet').onclick = () => $('set').classList.contains('open') ? closePanel('set') : openPanel('set');
+$('bFull').onclick = toggleFull;
+$('bVol').onclick = () => stepVol(1, false);
+$('bVolP').onclick = () => stepVol(-1, false);
+$('rng').oninput = e => { S.idx = +e.target.value - 1; show(); };
+$('num').onchange = e => { S.idx = (+e.target.value || 1) - 1; show(); };
+$('sb').oninput = e => { cfg.bright = +e.target.value; applyImg(); LS.set('vcbr:cfg', cfg); };
+$('sc').oninput = e => { cfg.contrast = +e.target.value; applyImg(); LS.set('vcbr:cfg', cfg); };
+$('bNight').onclick = () => { cfg.night = !cfg.night; applyImg(); LS.set('vcbr:cfg', cfg); };
+const toggleUI = () => { document.body.classList.toggle('noui'); setTimeout(setSh, 50); };
+
+addEventListener('resize', setSh);
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type === 'number') return;
+  const k = e.key.toLowerCase();
+  if (k === 'arrowright') dirKey(1); else if (k === 'arrowleft') dirKey(-1);
+  else if (k === ' ' || k === 'pagedown') { e.preventDefault(); nav(1); } else if (k === 'pageup') nav(-1);
+  else if (k === 'home') { S.idx = 0; show(); } else if (k === 'end') { S.idx = S.pages.length - 1; show(); }
+  else if (k === '+' || k === '=') setZoom(S.z + .5); else if (k === '-') setZoom(S.z - .5);
+  else if (k === 't') toggleThumbs(); else if (k === 'd') toggle('double'); else if (k === 'm') toggle('rtl');
+  else if (k === 'a') $('bFit').click(); else if (k === 'f') $('bFull').click(); else if (k === 'l') $('bLib').click(); else if (k === 'n') $('bNight').click();
+  else if (k === 'h') toggleUI(); else if (k === 'escape') { ['addmenu', 'set', 'drawer'].forEach(id => closePanel(id)); syncUI(); }
+});
+
+/* clic: bordes = página, centro = ocultar barras; doble clic = zoom */
+let clickT;
+stage.addEventListener('click', e => {
+  if ($('set').classList.contains('open')) { closePanel('set'); return; }
+  if (!S.pages.length || S.z > 1) { if (S.pages.length && e.detail === 1 && S.z > 1) toggleUI(); return; }
+  const x = e.clientX / innerWidth;
+  clearTimeout(clickT);
+  clickT = setTimeout(() => { if (x < .3) dirKey(-1); else if (x > .7) dirKey(1); else toggleUI(); }, 230);
+});
+stage.addEventListener('dblclick', () => { clearTimeout(clickT); toggleFull(); });
+stage.addEventListener('wheel', e => { if (e.ctrlKey) { e.preventDefault(); setZoom(S.z - e.deltaY / 200); } }, { passive: false });
+let pinch;
+stage.addEventListener('touchstart', e => { if (e.touches.length === 2) pinch = { d: Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY), z: S.z }; });
+stage.addEventListener('touchmove', e => { if (pinch && e.touches.length === 2) { e.preventDefault(); setZoom(pinch.z * Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY) / pinch.d); } }, { passive: false });
+stage.addEventListener('touchend', () => { pinch = null; });
+
+['dragover', 'dragenter'].forEach(t => addEventListener(t, e => { e.preventDefault(); stage.classList.add('drop'); }));
+['dragleave', 'drop'].forEach(t => addEventListener(t, e => { e.preventDefault(); stage.classList.remove('drop'); }));
+addEventListener('drop', e => openFile(e.dataTransfer.files[0]));
+
+applyImg(); syncUI();
+/* ---------- App Android (Capacitor) ---------- */
+let FULL = false;
+const CapApp = NATIVE ? (Capacitor.Plugins.App || Capacitor.registerPlugin('App')) : null;
+async function nativeFile(uri, name) {
+  const r = await VCBR.copyToCache({ uri, name });
+  const resp = await fetch(Capacitor.convertFileSrc('file://' + encodeURI(r.path)));
+  if (!resp.ok) throw new Error('no se pudo leer el archivo (' + resp.status + ')');
+  return new File([await resp.blob()], name);
+}
+function treeFromNative(n, rootName) {
+  const conv = (x, path) => ({ name: x.name, path, dirs: (x.dirs || []).map(d => conv(d, path + d.name + '/')), comics: (x.comics || []).map(c => ({ name: c.name, uri: c.uri, size: c.size })) });
+  const t = conv(n, ''); t.name = rootName || n.name; sortTree(t); return t;
+}
+async function addFolderNative() {
+  try {
+    const r = await VCBR.pickFolder();
+    toast('Leyendo carpeta…', 60000);
+    const tree = treeFromNative(await VCBR.scanFolder({ uri: r.uri }), r.name);
+    upsertRoot({ name: r.name, uri: r.uri, tree });
+  } catch (e) { if (!/cancel/i.test(e.message || '')) toast('No se pudo abrir la carpeta: ' + (e.message || e), 5000); }
+}
+async function refreshNative(i) {
+  const r = ROOTS[i];
+  if (!r || !r.uri) return addFolderNative();
+  try {
+    toast('Leyendo carpeta…', 60000);
+    r.tree = treeFromNative(await VCBR.scanFolder({ uri: r.uri }), r.name);
+    if (NAV.r === i) NAV.path = [r.tree];
+    toast(countAll(r.tree) + ' cómics'); showLib();
+  } catch (e) { toast('Se perdió el acceso a «' + r.name + '». Elígela de nuevo.', 5000); addFolderNative(); }
+}
+function updateVol() {
+  if (!NATIVE) return;
+  try {
+    VCBR.captureVolume({ on: !!(cfg.volkeys && S.pages.length && !lib.classList.contains('open')) });
+    VCBR.keepAwake({ on: !!S.pages.length });
+  } catch (e) {}
+}
+async function openIncoming(f) {
+  if (!f || !f.uri) return;
+  try { const file = await nativeFile(f.uri, f.name || 'comic.cbr'); S.seq = null; openBook(file, file.name + '|' + file.size); }
+  catch (e) { toast('No se pudo abrir el archivo: ' + (e.message || e), 6000); }
+}
+function initNative() {
+  if (!NATIVE) { $('sv').parentElement.style.display = 'none'; return; }
+  $('sv').onchange = e => { cfg.volkeys = e.target.checked; LS.set('vcbr:cfg', cfg); updateVol(); };
+  VCBR.getIntentFile().then(openIncoming).catch(() => {});
+  VCBR.addListener('fileIntent', openIncoming);
+  window.addEventListener('volkey', e => { if (!S.pages.length || lib.classList.contains('open')) return; dirKey(e.detail === 'up' ? -1 : 1); });
+  CapApp.addListener('backButton', () => {
+    for (const id of ['addmenu', 'set', 'drawer']) if ($(id).classList.contains('open')) { closePanel(id); syncUI(); return; }
+    if (lib.classList.contains('open')) { if (S.pages.length) closePanel('lib'); else CapApp.exitApp(); return; }
+    if (FULL) { toggleFull(); return; }
+    if (S.pages.length) { showLib(); return; }
+    CapApp.exitApp();
+  });
+}
+initNative();
+initRoots();
+</script>
+</body>
+</html>
